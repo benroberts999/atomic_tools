@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 import numpy as np
+import os.path
+
+""""""
 
 # Define physical constants:
 
@@ -32,24 +35,57 @@ def gamma_E2(qe2, omega, ji):
     (1.0 / 15) * (omega * alpha) ** 5 * qe2**2 / (2 * ji + 1) / seconds
 
 
-en_data = np.genfromtxt(
-    "en-example.txt", dtype=[("a", "U10"), ("J", "f"), ("En", "f")], comments="#"
-)
-e1_data = np.genfromtxt(
-    "e1-example.txt",
-    dtype=[("a", "U10"), ("b", "U10"), ("d", "f"), ("err", "f")],
-    comments="#",
-)
+def get_data(energy_file, e1_file="", m1_file="", e2_file=""):
+    """Reads in data from energy and matrix element text files.
+    Energy data in three collumns: a J En
+    (state, J, and energy in cm^-1).
+    Matrix element data in 4 columns: a b D err
+    (States a and b, matrix element D, and uncertainty err).
+    """
+    if not os.path.isfile(energy_file):
+        return [], [], [], []
+    en_data = np.genfromtxt(
+        energy_file,
+        dtype=[("a", "U10"), ("J", "f"), ("En", "f")],
+        comments="#",
+    )
+    en_data.sort(order="En")
+    en_data["En"] /= Eh_cm
 
-print(en_data)
-
-en_data.sort(order="En")
-en_data["En"] /= Eh_cm
-
-print(en_data)
+    e1_data = (
+        np.genfromtxt(
+            e1_file,
+            dtype=[("a", "U10"), ("b", "U10"), ("d", "f"), ("err", "f")],
+            comments="#",
+        )
+        if os.path.isfile(e1_file)
+        else []
+    )
+    m1_data = (
+        np.genfromtxt(
+            m1_file,
+            dtype=[("a", "U10"), ("b", "U10"), ("d", "f"), ("err", "f")],
+            comments="#",
+        )
+        if os.path.isfile(m1_file)
+        else []
+    )
+    e2_data = (
+        np.genfromtxt(
+            e2_file,
+            dtype=[("a", "U10"), ("b", "U10"), ("d", "f"), ("err", "f")],
+            comments="#",
+        )
+        if os.path.isfile(e2_file)
+        else []
+    )
+    return en_data, e1_data, m1_data, e2_data
 
 
 def get_matel(data, ai, af):
+    """Finds the <f|D|i> OR <i|D|f> matrix element from array"""
+    if len(data) == 0:
+        return [0.0, 0.0]
     # There's got to be a better way to do this....
     t1 = data[data["a"] == ai]
     t2 = t1[t1["b"] == af]
@@ -62,64 +98,101 @@ def get_matel(data, ai, af):
     return [0.0, 0.0]
 
 
-print("\nPartial decay rates")
-taus = np.empty((en_data.size, 2))
-for index, [ai, ji, Ei] in enumerate(en_data):
-    print(f"\nState: {ai}:")
-    print(f"  En = {Ei*Eh_cm:.3f} /cm")
-    Gamma = 0.0
-    del_Gamma2 = 0.0
-    gammas = []
-    for [af, _, Ef] in en_data:
-        # Can only decay to lower states
-        if Ef >= Ei:
-            continue
-        omega = Ei - Ef
-        assert omega > 0
-        [dE1, del_dE1] = get_matel(e1_data, ai, af)
-        if dE1 != 0.0:
-            gamma = gamma_E1(dE1, omega, ji)
+def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
+    """Calculates lifetimes, and prints partial widths, for each state.
+    Returns lifetimes as array in same order as energies."""
+    print("\nPartial decay rates")
+    taus = np.empty((en_data.size, 2))
+    for index, [ai, ji, Ei] in enumerate(en_data):
+        print(f"\nState: {ai}:")
+        print(f"  En = {Ei*Eh_cm:.3f} /cm")
+        Gamma = 0.0
+        del_Gamma2 = 0.0
+        gammas = []
+        for [af, _, Ef] in en_data:
+            # Can only decay to lower states
+            if Ef >= Ei:
+                continue
+            omega = Ei - Ef
+            assert omega > 0
 
-            del_gamma = (
-                del_dE1
-                * (gamma_E1(dE1 + 0.05, omega, ji) - gamma_E1(dE1 - 0.05, omega, ji))
-                / 0.1
+            [e1x, d_e1] = get_matel(e1_data, ai, af)
+            [m1, d_m1] = get_matel(m1_data, ai, af)
+            [e2, d_e2] = get_matel(e2_data, ai, af)
+
+            symbols = ["E1", "M1", "E2"]
+            f_gammas = [gamma_E1, gamma_M1, gamma_E2]
+            ds = [e1x, m1, e2]
+            errs = [d_e1, d_m1, d_e2]
+
+            for i in range(3):
+                d, err, fgamma, s = ds[i], errs[i], f_gammas[i], symbols[i]
+                if d == 0.0:
+                    continue
+                gamma = fgamma(d, omega, ji)
+
+                del_gamma = (
+                    err
+                    * (fgamma(d + 0.05, omega, ji) - fgamma(d - 0.05, omega, ji))
+                    / 0.1
+                )
+
+                Gamma += gamma
+                del_Gamma2 += del_gamma**2
+                print(f"   -> {af} {s}: {gamma:.3e}  +/-  {np.abs(del_gamma):.3e} /s")
+                gammas.append(gamma)
+
+        del_Gamma = np.sqrt(del_Gamma2)
+
+        # decay fractions
+        if len(gammas) > 0:
+            gammas = gammas / np.sum(gammas)
+            string = "".join([f"{g:.5f}, " for g in gammas])
+            print(f"   f :: [{string}]")
+
+        tau = 1.0 / Gamma if Gamma != 0.0 else np.inf
+        del_tau = (del_Gamma / Gamma) * tau if Gamma != 0.0 else 0.0
+        print(f"  tau = {tau:.5e} s")
+        taus[index][0] = tau
+        taus[index][1] = del_tau
+    return taus
+
+
+def print_summary(en_data, taus):
+    for index, [ai, _, _] in enumerate(en_data):
+        [t, dt] = taus[index]
+        if t == np.inf:
+            continue
+
+        # print differently if we have errors or not
+        if dt == 0.0:
+            print(f"{ai} : {t:.4e} +/- {dt:.4e} s")
+        else:
+            exp = np.floor(np.log10(t))
+            pp = np.power(10.0, -exp)
+
+            n_digits = 1 - int(np.floor(np.log10(dt * pp)))
+            pp2 = 10**n_digits
+            TYPE = "f"
+            print(
+                f"{ai} : {t:.4e} +/- {dt:.4e} s  = {t*pp:{n_digits+2}.{n_digits}{TYPE}} ({dt*pp*pp2:{2}.{0}{TYPE}}) x10^{int(exp)} s"
             )
 
-            Gamma += gamma
-            del_Gamma2 += del_gamma**2
-            print(f"   -> {af} E1: {gamma:.3e}  +/-  {np.abs(del_gamma):.3e} /s")
-            gammas.append(gamma)
 
-    del_Gamma = np.sqrt(del_Gamma2)
+################################################################################
 
-    # decay fractions
-    if len(gammas) > 0:
-        gammas = gammas / np.sum(gammas)
-        print(f"   :: {gammas}")
 
-    tau = 1.0 / Gamma if Gamma != 0.0 else np.inf
-    del_tau = (del_Gamma / Gamma) * tau if Gamma != 0.0 else 0.0
-    print(f"  tau = {tau:.5e} s")
-    taus[index][0] = tau
-    taus[index][1] = del_tau
+def main():
+    """Example usage"""
+    en_data, e1_data, m1_data, e2_data = get_data(
+        "en-example.txt", "e1-example.txt", "m1-example.txt"
+    )
 
-print()
-for index, [ai, _, _] in enumerate(en_data):
-    [t, dt] = taus[index]
-    if t == np.inf:
-        continue
+    taus = calculate_lifetimes(en_data, e1_data, m1_data)
 
-    # print differently if we have errors or not
-    if dt == 0.0:
-        print(f"{ai} : {t:.4e} +/- {dt:.4e} s")
-    else:
-        exp = np.floor(np.log10(t))
-        pp = np.power(10.0, -exp)
+    print("\nLifetimes Summary:")
+    print_summary(en_data, taus)
 
-        n_digits = 1 - int(np.floor(np.log10(dt * pp)))
-        pp2 = 10**n_digits
-        TYPE = "f"
-        print(
-            f"{ai} : {t:.4e} +/- {dt:.4e} s  = {t*pp:{n_digits+2}.{n_digits}{TYPE}} ({dt*pp*pp2:{2}.{0}{TYPE}}) x10^{int(exp)} s"
-        )
+
+if __name__ == "__main__":
+    main()
