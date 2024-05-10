@@ -10,11 +10,6 @@
 ## except: any file in any subdirectory that matches:
 !**/*.md
 
-!**/*.cpp
-!**/*.hpp
-!**/*.ipp
-!**/*.c
-!**/*.h
 !**/*.sh
 !**/*.gnu
 !**/*.py

@@ -140,15 +140,91 @@ for index in range(len(rrms_data)):
     rrms_data[index][1] = int(rrms_data[index][1])
     if not np.isnan(rrms_data[index][4]):
         rrms_data[index][4] = int(rrms_data[index][4])
+    # If even nuclei with no moments, assume this means spin=0!
+    if (
+        np.isnan(rrms_data[index][3])
+        and np.isnan(rrms_data[index][4])
+        and np.isnan(rrms_data[index][5])
+        and np.isnan(rrms_data[index][6])
+        and rrms_data[index][1] % 2 == 0
+    ):
+        rrms_data[index][3] = 0
+        rrms_data[index][4] = 1
+        rrms_data[index][5] = 0
+        rrms_data[index][6] = 0
 
 # sort by Z, then A
 ind = np.lexsort((rrms_data[:, 1], rrms_data[:, 0]))
 rrms_data = rrms_data[ind]
 
+################################################################################
+
+# Save data as regular csv (missing values => nan)
 np.savetxt(
-    "foo.csv",
+    "nuclear_data.csv",
     rrms_data,
     delimiter=",",
     fmt=["%i", "%i", "%.5f", "%.1f", "%.0f", "%.8f", "%.8f"],
     header="z,a,rrms,I,pi,mu,q",
 )
+
+
+# Save data for ampsci
+from datetime import datetime
+
+# datetime object containing current date and time
+now = datetime.now()
+gen_date = now.strftime("%Y-%m-%d %H:%M:%S")
+
+header_text = f"""#pragma once
+#include "Physics/NuclearData.hpp"
+#include <vector>
+
+// Auto-generated file, using data from https://www-nds.iaea.org/
+
+// Generated using compile_nuclear_data.py 
+// Available from: https://github.com/benroberts999/atomic_tools
+// Generated date: {gen_date}
+
+// Nuclear rms radii (in fm) taken from:
+// https://www-nds.iaea.org/nuclearmoments/magn_mom_recomm.csv
+
+// Nuclear spin, parity, magnetic mu moments (in nuclear magnetons) from:
+// https://www-nds.iaea.org/radii/charge_radii.csv
+
+// And,
+// Nuclear spin, parity, electric Q moments (in barns) from:
+// https://www-nds.iaea.org/nuclearmoments/elec_mom_recomm.csv
+
+namespace Nuclear {{
+
+//! Table of nuclear isotope data: Z, A, r_rms/fm, I, pi, mu/mu_N, Q/b
+/*! @details
+ - Note: Always check if important, may contain errors.
+ - Nuclear Data Service: https://www-nds.iaea.org/.
+ - Radii: https://www-nds.iaea.org/radii/ (Marinova, Angeli).
+ - Moments: https://www-nds.iaea.org/nuclearmoments/.
+*/
+static const std::vector<Isotope> NuclearDataTable = {{
+    // {{Z, A, rrms, I, pi, mu, Q}}
+"""
+
+footer_text = """
+} // namespace Nuclear
+"""
+
+with open("nuclear_data_table.hpp", "w") as hpp_file:
+    hpp_file.write(header_text)
+    for index, [z, a, rrms, I, pi, mu, q] in enumerate(rrms_data):
+        hpp_file.write(f"    {{{z}, {a}")
+        for value in [rrms, I, pi, mu, q]:
+            if not np.isnan(value):
+                hpp_file.write(f", {value}")
+            else:
+                hpp_file.write(f", {{}}")
+        hpp_file.write(f"}}")
+        if index != len(rrms_data) - 1:
+            hpp_file.write(",\n")
+        else:
+            hpp_file.write("};\n")
+    hpp_file.write(footer_text)
