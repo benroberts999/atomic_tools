@@ -110,6 +110,7 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
         Gamma = 0.0
         del_Gamma2 = 0.0
         gammas = []
+        channel = []
         for [af, _, Ef] in en_data:
             # Can only decay to lower states
             if Ef >= Ei:
@@ -142,6 +143,7 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
                 del_Gamma2 += del_gamma**2
                 print(f"   -> {af} {s}: {gamma:.3e}  +/-  {np.abs(del_gamma):.3e} /s")
                 gammas.append(gamma)
+                channel.append(f"{af} {s}")
 
         del_Gamma = np.sqrt(del_Gamma2)
 
@@ -150,6 +152,8 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
             gammas = gammas / np.sum(gammas)
             string = "".join([f"{g:.8g}, " for g in gammas])
             print(f"   f :: [{string}]")
+            string_channel = "".join([f"{c:8s}, " for c in channel])
+            print(f"   f :: [{string_channel}]")
 
         tau = 1.0 / Gamma if Gamma != 0.0 else np.inf
         del_tau = (del_Gamma / Gamma) * tau if Gamma != 0.0 else 0.0
