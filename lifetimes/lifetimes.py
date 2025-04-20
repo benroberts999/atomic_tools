@@ -101,6 +101,7 @@ def get_matel(data, ai, af):
 def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
     """Calculates lifetimes, and prints partial widths, for each state.
     Returns lifetimes as array in same order as energies."""
+    en_data = np.array(en_data)  # Ensure en_data is a NumPy array
     print("\nPartial decay rates")
     taus = np.empty((en_data.size, 2))
     for index, [ai, ji, Ei] in enumerate(en_data):
@@ -147,12 +148,12 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
         # decay fractions
         if len(gammas) > 0:
             gammas = gammas / np.sum(gammas)
-            string = "".join([f"{g:.5f}, " for g in gammas])
+            string = "".join([f"{g:.8g}, " for g in gammas])
             print(f"   f :: [{string}]")
 
         tau = 1.0 / Gamma if Gamma != 0.0 else np.inf
         del_tau = (del_Gamma / Gamma) * tau if Gamma != 0.0 else 0.0
-        print(f"  tau = {tau:.5e} s")
+        print(f"  tau = {tau:.8e} s")
         taus[index][0] = tau
         taus[index][1] = del_tau
     return taus
