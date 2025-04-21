@@ -32,7 +32,7 @@ def gamma_M1(dm1, omega, ji):
 
 def gamma_E2(qe2, omega, ji):
     """Partial decay rate due to E2 transtion. dm1 is in units of mu_B"""
-    (1.0 / 15) * (omega * alpha) ** 5 * qe2**2 / (2 * ji + 1) / seconds
+    return (1.0 / 15) * (omega * alpha) ** 5 * qe2**2 / (2 * ji + 1) / seconds
 
 
 def get_data(energy_file, e1_file="", m1_file="", e2_file=""):
@@ -111,6 +111,7 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
         del_Gamma2 = 0.0
         gammas = []
         channel = []
+        decays = []
         for [af, _, Ef] in en_data:
             # Can only decay to lower states
             if Ef >= Ei:
@@ -132,7 +133,6 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
                 if d == 0.0:
                     continue
                 gamma = fgamma(d, omega, ji)
-
                 del_gamma = (
                     err
                     * (fgamma(d + 0.05, omega, ji) - fgamma(d - 0.05, omega, ji))
@@ -141,7 +141,9 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
 
                 Gamma += gamma
                 del_Gamma2 += del_gamma**2
-                print(f"   -> {af} {s}: {gamma:.3e}  +/-  {np.abs(del_gamma):.3e} /s")
+                decays.append(
+                    f"   -> {af} {s}: {gamma:.3e}  +/-  {np.abs(del_gamma):.3e} /s"
+                )
                 gammas.append(gamma)
                 channel.append(f"{af} {s}")
 
@@ -150,10 +152,9 @@ def calculate_lifetimes(en_data, e1_data, m1_data=[], e2_data=[]):
         # decay fractions
         if len(gammas) > 0:
             gammas = gammas / np.sum(gammas)
-            string = "".join([f"{g:.8g}, " for g in gammas])
-            print(f"   f :: [{string}]")
-            string_channel = "".join([f"{c:8s}, " for c in channel])
-            print(f"   f :: [{string_channel}]")
+        # Print each rate, and decay fractions
+        for i, decay in enumerate(decays):
+            print(f"{decay}  { gammas[i]:.8e}")
 
         tau = 1.0 / Gamma if Gamma != 0.0 else np.inf
         del_tau = (del_Gamma / Gamma) * tau if Gamma != 0.0 else 0.0
