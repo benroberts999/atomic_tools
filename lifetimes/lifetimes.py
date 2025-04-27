@@ -190,11 +190,18 @@ def print_summary(en_data, taus):
 
 def main():
     """Example usage"""
-    en_data, e1_data, m1_data, e2_data = get_data(
-        "en-example.txt", "e1-example.txt", "m1-example.txt"
-    )
 
-    taus = calculate_lifetimes(en_data, e1_data, m1_data)
+    # en_data, e1_data, m1_data, e2_data = get_data(
+    #     "ba+_en.txt", "ba+_E1.txt", "ba+_M1.txt", "ba+_E2.txt"
+    # )
+
+    en_data, e1_data, m1_data, e2_data = get_data("ba+_en.txt", "ba+_E1.txt")
+
+    # en_data, e1_data, m1_data, e2_data = get_data(
+    #     "ra+_en.txt", "ra+_E1_sr.txt", "ra+_M1_sr.txt", "ra+_E2_sr.txt"
+    # )
+
+    taus = calculate_lifetimes(en_data, e1_data, m1_data, e2_data)
 
     print("\nLifetimes Summary:")
     print_summary(en_data, taus)
