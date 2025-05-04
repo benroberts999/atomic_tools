@@ -202,7 +202,7 @@ def main():
     # )
 
     en_data, e1_data, m1_data, e2_data = get_data(
-        "ra+_en.txt", "ra+_E1_old.txt", "ra+_M1.txt", "ra+_E2.txt"
+        "ra+_en.txt", "ra+_E1_new.txt", "ra+_M1.txt", "ra+_E2.txt"
     )
 
     taus = calculate_lifetimes(en_data, e1_data, m1_data, e2_data)
